@@ -1,0 +1,5 @@
+# DR Hyper-V host — Hyper-V Replica target and the D1 clean-restore destination.
+# "DR-Switch" is the isolated switch the restored NSRV03 attaches to in Lab D1.
+hyperv_switches:
+  - name: DR-Switch
+    type: Internal

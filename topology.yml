@@ -1,0 +1,174 @@
+name: cr09
+hosts:
+  - name: dc01
+    flavor: c2_r4_d40
+    base_box:
+      image: windows-server-2019-x86_64
+      mgmt_user: windows
+      mgmt_protocol: winrm
+    hidden: false
+  - name: srv01
+    flavor: c2_r4_d40
+    base_box:
+      image: windows-server-2019-x86_64
+      mgmt_user: windows
+      mgmt_protocol: winrm
+    hidden: false
+  - name: srv02
+    flavor: c2_r4_d40
+    base_box:
+      image: windows-server-2019-x86_64
+      mgmt_user: windows
+      mgmt_protocol: winrm
+    hidden: false
+  - name: bckup1
+    flavor: c2_r4_d40
+    base_box:
+      # TODO: change to the Veeam-preinstalled base image once built.
+      # Veeam B&R should be baked in with NO license applied so it boots in
+      # Community Edition (free, no activation). Image not yet built — see
+      # cr09/labs/lab_env_description.md "Preinstalled Software Image".
+      image: windows-server-2019-x86_64
+      mgmt_user: windows
+      mgmt_protocol: winrm
+    hidden: false
+  - name: bckup2
+    flavor: c2_r4_d40
+    base_box:
+      # TODO: change to the Veeam-preinstalled base image once built.
+      # Veeam B&R baked in, NO license (Community Edition). Image not yet built —
+      # see cr09/labs/lab_env_description.md "Preinstalled Software Image".
+      image: windows-server-2019-x86_64
+      mgmt_user: windows
+      mgmt_protocol: winrm
+    hidden: false
+  - name: nsrv03
+    flavor: c2_r4_d40
+    base_box:
+      image: debian-12-x86_64
+      mgmt_user: debian
+      mgmt_protocol: ssh
+    hidden: false
+  - name: lin01
+    flavor: c2_r4_d40
+    base_box:
+      image: debian-12-x86_64
+      mgmt_user: debian
+      mgmt_protocol: ssh
+    hidden: false
+routers:
+  - name: r-prod
+    flavor: standard.small
+    base_box:
+      image: debian-12-x86_64
+      mgmt_user: debian
+      mgmt_protocol: ssh
+    hidden: false
+  - name: r-dr
+    flavor: standard.small
+    base_box:
+      image: debian-12-x86_64
+      mgmt_user: debian
+      mgmt_protocol: ssh
+    hidden: false
+  - name: r-backup
+    flavor: standard.small
+    base_box:
+      image: debian-12-x86_64
+      mgmt_user: debian
+      mgmt_protocol: ssh
+    hidden: false
+networks:
+  - name: prod
+    cidr: 10.9.10.0/24
+    accessible_by_user: true
+    hidden: false
+  - name: dr
+    cidr: 10.9.20.0/24
+    accessible_by_user: true
+    hidden: false
+  - name: backup
+    cidr: 10.9.30.0/24
+    accessible_by_user: false
+    hidden: false
+wan:
+  name: wan
+  cidr: 10.9.100.0/24
+net_mappings:
+  - host: dc01
+    network: prod
+    ip: 10.9.10.3
+  - host: srv01
+    network: prod
+    ip: 10.9.10.4
+  - host: srv01
+    network: backup
+    ip: 10.9.30.4
+  - host: srv02
+    network: dr
+    ip: 10.9.20.4
+  - host: srv02
+    network: backup
+    ip: 10.9.30.5
+  - host: bckup1
+    network: prod
+    ip: 10.9.10.5
+  - host: bckup1
+    network: backup
+    ip: 10.9.30.6
+  - host: bckup2
+    network: dr
+    ip: 10.9.20.5
+  - host: bckup2
+    network: backup
+    ip: 10.9.30.7
+  - host: nsrv03
+    network: prod
+    ip: 10.9.10.20
+  - host: lin01
+    network: prod
+    ip: 10.9.10.21
+router_mappings:
+  - router: r-prod
+    network: prod
+    ip: 10.9.10.1
+  - router: r-dr
+    network: dr
+    ip: 10.9.20.1
+  - router: r-backup
+    network: backup
+    ip: 10.9.30.1
+groups:
+  - name: domain-controllers
+    nodes:
+      - dc01
+  - name: hyperv-hosts
+    nodes:
+      - srv01
+      - srv02
+  - name: veeam-servers
+    nodes:
+      - bckup1
+      - bckup2
+  - name: veeam-primary
+    nodes:
+      - bckup1
+  - name: veeam-repo
+    nodes:
+      - bckup2
+  - name: windows-members
+    nodes:
+      - srv01
+      - srv02
+      - bckup1
+      - bckup2
+  - name: linux-nodes
+    nodes:
+      - nsrv03
+      - lin01
+  - name: production-app
+    nodes:
+      - nsrv03
+  - name: web-servers
+    nodes:
+      - lin01

@@ -1,0 +1,26 @@
+# Veeam Backup & Replication unattended install (bckup1 = primary, bckup2 = DR).
+# The lab steps open the Veeam Console on both servers, so B&R is installed on
+# the whole veeam-servers group. Community Edition is used (no license file).
+#
+# The installer ISO is NOT redistributable and cannot be downloaded without a
+# Veeam account, so the trainer must supply it. Provide ONE of:
+#   * veeam_iso_url  — an HTTP(S) URL the host can reach (fetched at deploy), or
+#   * place the ISO on the image / repository at veeam_iso_path beforehand.
+# Tested against Veeam B&R 12.x; verify the MSI paths/parameters against the
+# exact build you ship (see "Installing Veeam B&R in Unattended Mode" in the
+# Veeam User Guide).
+veeam_iso_url: ''                       # e.g. https://repo.internal/VeeamBackup_12.iso
+veeam_iso_path: 'C:\Installs\VeeamBackup.iso'
+veeam_catalog_path: 'C:\VBRCatalog'
+
+# PostgreSQL backend bundled with v12 is installed automatically by the server
+# MSI when ACCEPT_REQUIRED_SOFTWARE=1 is set.
+veeam_pgsql_superuser: postgres
+veeam_pgsql_password: Pa$$w0rd
+
+# Backup repository directories created on each Veeam server (the Default
+# repository on bckup1, the immutable/offsite copy target on bckup2). The
+# matching folders are also created in the per-server plays.
+veeam_repo_paths:
+  - 'C:\Backups\Default'
+  - 'C:\Backups\Immutable'

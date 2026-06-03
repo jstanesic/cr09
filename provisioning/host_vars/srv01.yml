@@ -1,0 +1,4 @@
+# Production Hyper-V host — hosts NSRV03 and (after C1) the restored LIN01.
+hyperv_switches:
+  - name: Production-Switch
+    type: Internal

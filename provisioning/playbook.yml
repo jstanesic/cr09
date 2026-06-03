@@ -1,0 +1,367 @@
+- name: Wait until WinRM/PSRP is reachable on every Windows host
+  hosts: domain-controllers:windows-members
+  gather_facts: false
+  tasks:
+    - name: Wait for PSRP listener to accept connections
+      ansible.builtin.wait_for_connection:
+        delay: 0
+        sleep: 10
+        timeout: 900
+
+- name: Active Directory — promote domain controller (dc01)
+  hosts: domain-controllers
+  gather_facts: false
+  vars:
+    ad_domain_name: '{{ ad_domain_name | default("drlab.local") }}'
+    ad_admin_password: Pa$$w0rd
+  roles:
+    - name: ansible-role-user-access-windows
+      user_access_username: localadmin
+      user_access_password: Password123!
+      user_access_rdp: True
+      user_access_admin: True
+  tasks:
+    - name: Ensure AD DS Windows feature is installed
+      register: ad_feature
+      ansible.windows.win_feature:
+        name: AD-Domain-Services
+        include_management_tools: true
+        state: present
+    - name: Detect whether host is already promoted to a domain controller
+      register: dc_role
+      changed_when: false
+      ansible.windows.win_shell: >-
+        (Get-CimInstance Win32_ComputerSystem).DomainRole
+    - name: Set a strong password on the built-in Administrator account
+      when: (dc_role.stdout | trim | int) < 4
+      ansible.windows.win_user:
+        name: Administrator
+        password: '{{ ad_admin_password }}'
+        password_never_expires: true
+        state: present
+    - name: Promote host to domain controller
+      when: ad_feature is succeeded
+      microsoft.ad.domain:
+        dns_domain_name: '{{ ad_domain_name }}'
+        safe_mode_password: '{{ ad_admin_password }}'
+        reboot: true
+    - name: Wait for AD DS to come up after the post-promotion reboot
+      ansible.windows.win_wait_for:
+        host: 127.0.0.1
+        port: 389
+        delay: 30
+        timeout: 600
+    - name: Ensure default OU for trainees exists
+      microsoft.ad.ou:
+        name: Trainees
+        path: DC={{ ad_domain_name.split(".") | join(",DC=") }}
+        state: present
+    - name: Create the domain account students use to administer the domain
+      microsoft.ad.user:
+        name: domainuser
+        sam_account_name: domainuser
+        upn: domainuser@{{ ad_domain_name }}
+        password: Password123!
+        password_never_expires: true
+        enabled: true
+        state: present
+        groups:
+          add:
+            - Domain Admins
+    # Lab C1 (Phase 3) restores C:\Users\Administrator\Documents\Critical.txt
+    # via Veeam guest-file restore, so the file must exist before backups run.
+    - name: Ensure the Administrator Documents folder exists
+      ansible.windows.win_file:
+        path: C:\Users\Administrator\Documents
+        state: directory
+    - name: Seed the Critical.txt file used by the C1 granular file restore
+      ansible.windows.win_copy:
+        dest: C:\Users\Administrator\Documents\Critical.txt
+        content: |
+          CADMUS CR09 — Disaster Recovery Operations.
+          This file is restored from the offsite DC01 backup in Lab C1
+          to prove the integrity of a backup copy via granular file restore.
+
+- name: Active Directory — join Windows member servers to the domain
+  hosts: windows-members
+  gather_facts: false
+  vars:
+    ad_domain_name: '{{ ad_domain_name | default("drlab.local") }}'
+    ad_admin_password: Pa$$w0rd
+    ad_dc_ip: 10.9.10.3
+  roles:
+    - name: ansible-role-user-access-windows
+      user_access_username: localadmin
+      user_access_password: Password123!
+      user_access_rdp: True
+      user_access_admin: True
+  tasks:
+    - name: Point DNS at the domain controller on all adapters
+      ansible.windows.win_dns_client:
+        adapter_names: '*'
+        dns_servers:
+          - '{{ ad_dc_ip }}'
+    - name: Join host to the AD domain
+      microsoft.ad.membership:
+        dns_domain_name: '{{ ad_domain_name }}'
+        domain_admin_user: Administrator@{{ ad_domain_name }}
+        domain_admin_password: '{{ ad_admin_password }}'
+        state: domain
+        reboot: true
+
+- name: Hyper-V hosts — install the role and configure switches + replica
+  hosts: hyperv-hosts
+  gather_facts: false
+  tasks:
+    - name: Ensure the Hyper-V role and management tools are installed
+      register: hyperv_feature
+      ansible.windows.win_feature:
+        name: Hyper-V
+        include_management_tools: true
+        state: present
+    - name: Reboot if the Hyper-V role install requested it
+      when: hyperv_feature.reboot_required | default(false)
+      ansible.windows.win_reboot:
+    - name: Wait for the Hyper-V management service (vmms) to be present
+      register: vmms_info
+      until: vmms_info.services | length > 0
+      retries: 30
+      delay: 10
+      ansible.windows.win_service_info:
+        name: vmms
+    # Lab A1 deletes C:\Hyper-V\NSRV03\Virtual Hard Disks\NSRV03.vhdx to simulate
+    # storage loss, so the directory tree must be present on the production host.
+    - name: Ensure the Hyper-V directory layout exists
+      loop:
+        - '{{ hyperv_vm_root }}'
+        - '{{ hyperv_vm_root }}\NSRV03\Virtual Hard Disks'
+        - '{{ hyperv_replica_storage }}'
+      ansible.windows.win_file:
+        path: '{{ item }}'
+        state: directory
+    - name: Create the host's Hyper-V virtual switches (Production-Switch / DR-Switch)
+      loop: '{{ hyperv_switches | default([]) }}'
+      loop_control:
+        label: '{{ item.name }}'
+      register: vmswitch
+      changed_when: "'created' in vmswitch.stdout"
+      ansible.windows.win_shell: |
+        if (-not (Get-VMSwitch -Name '{{ item.name }}' -ErrorAction SilentlyContinue)) {
+          New-VMSwitch -Name '{{ item.name }}' -SwitchType {{ item.type }} | Out-Null
+          'created'
+        } else { 'exists' }
+    - name: Allow the Hyper-V Replica HTTP listener inbound through the firewall
+      ansible.windows.win_shell: >-
+        Enable-NetFirewallRule -DisplayName 'Hyper-V Replica HTTP Listener (TCP-In)'
+      changed_when: false
+      failed_when: false
+    - name: Configure this host as a Hyper-V Replica server (Kerberos/HTTP)
+      changed_when: false
+      ansible.windows.win_shell: |
+        Set-VMReplicationServer -ReplicationEnabled $true `
+          -AllowedAuthenticationType {{ hyperv_replica_auth }} `
+          -KerberosAuthenticationPort {{ hyperv_replica_http_port }} `
+          -DefaultStorageLocation '{{ hyperv_replica_storage }}' `
+          -ReplicationAllowedFromAnyServer $true
+
+- name: Veeam Backup & Replication — unattended install + repositories
+  hosts: veeam-servers
+  gather_facts: false
+  vars:
+    veeam_mount: ''
+  tasks:
+    # Default Backup Repository (A1/B1) on bckup1, the immutable/offsite copy
+    # target (B1/D1) on bckup2, the LIN01.vbk import-staging path used by C1,
+    # and the catalog directory. Created on the whole group — harmless extras.
+    - name: Ensure install / repository / catalog directories exist
+      loop:
+        - 'C:\Installs'
+        - 'C:\Installs\Backups'
+        - '{{ veeam_catalog_path }}'
+        - 'C:\Backups\Default'
+        - 'C:\Backups\Immutable'
+      ansible.windows.win_file:
+        path: '{{ item }}'
+        state: directory
+    - name: Detect whether Veeam B&R is already installed
+      register: veeam_svc
+      ansible.windows.win_service_info:
+        name: VeeamBackupSvc
+    - name: Install Veeam Backup & Replication (Community Edition)
+      when: veeam_svc.services | length == 0
+      block:
+        - name: Fetch the Veeam ISO if a URL was provided
+          when: veeam_iso_url | length > 0
+          ansible.windows.win_get_url:
+            url: '{{ veeam_iso_url }}'
+            dest: '{{ veeam_iso_path }}'
+        - name: Stat the Veeam ISO
+          register: iso_stat
+          ansible.windows.win_stat:
+            path: '{{ veeam_iso_path }}'
+        - name: Require the installer media to be present
+          ansible.builtin.assert:
+            that: iso_stat.stat.exists
+            fail_msg: >-
+              Veeam ISO not found at {{ veeam_iso_path }} and veeam_iso_url is
+              empty. Supply the installer media — see group_vars/veeam-servers.yml.
+        - name: Mount the Veeam ISO and capture the drive letter
+          register: veeam_drive
+          changed_when: true
+          ansible.windows.win_shell: |
+            $img = Mount-DiskImage -ImagePath '{{ veeam_iso_path }}' -PassThru
+            ($img | Get-Volume).DriveLetter
+        - name: Record the mounted drive
+          ansible.builtin.set_fact:
+            veeam_mount: '{{ veeam_drive.stdout | trim }}:'
+        - name: Install the Veeam Backup Catalog component
+          ansible.windows.win_package:
+            path: '{{ veeam_mount }}\Catalog\VeeamBackupCatalog64.msi'
+            arguments: /qn ACCEPTEULA=1 ACCEPT_THIRDPARTY_LICENSES=1 VM_CATALOGPATH="{{ veeam_catalog_path }}"
+            state: present
+        - name: Install the Veeam Backup & Replication server (auto-installs PostgreSQL)
+          ansible.windows.win_package:
+            path: '{{ veeam_mount }}\Backup\Server.x64.msi'
+            arguments: >-
+              /qn ACCEPTEULA=1 ACCEPT_THIRDPARTY_LICENSES=1
+              ACCEPT_LICENSING_POLICY=1 ACCEPT_REQUIRED_SOFTWARE=1
+              VBR_SQLSERVER_ENGINE=1
+              VBR_POSTGRESQL_SUPERUSER_USERNAME={{ veeam_pgsql_superuser }}
+              VBR_POSTGRESQL_SUPERUSER_PASSWORD={{ veeam_pgsql_password }}
+            state: present
+        - name: Install the Veeam Backup & Replication console
+          ansible.windows.win_package:
+            path: '{{ veeam_mount }}\Backup\Shell.x64.msi'
+            arguments: /qn ACCEPTEULA=1 ACCEPT_THIRDPARTY_LICENSES=1
+            state: present
+      always:
+        - name: Dismount the Veeam ISO
+          when: veeam_mount | length > 0
+          changed_when: false
+          failed_when: false
+          ansible.windows.win_shell: Dismount-DiskImage -ImagePath '{{ veeam_iso_path }}'
+
+- name: Linux nodes — create the local trainee account
+  hosts: linux-nodes
+  become: true
+  roles:
+    - name: ansible-role-user-access
+      user_access_username: localuser
+      user_access_password: Password123!
+      user_access_sudo: True
+
+- name: Production application server (nsrv03) — app, data set and DR-drill script
+  hosts: production-app
+  become: true
+  tasks:
+    - name: Ensure the /data application dataset exists
+      ansible.builtin.file:
+        path: /data
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+    - name: Seed sample business files into /data
+      loop:
+        - invoices.dat
+        - customers.dat
+        - ledger.dat
+      ansible.builtin.copy:
+        dest: '/data/{{ item }}'
+        content: "CADMUS CR09 production data — {{ item }}\n"
+        owner: root
+        group: root
+        mode: '0644'
+        force: false
+    - name: Install the legacy-app systemd unit (status checked in B1/C1)
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/legacy-app.service
+        owner: root
+        group: root
+        mode: '0644'
+        content: |
+          [Unit]
+          Description=CADMUS CR09 Legacy Application Service
+          After=network-online.target
+
+          [Service]
+          Type=simple
+          ExecStart=/bin/sh -c 'while true; do sleep 30; done'
+          Restart=always
+
+          [Install]
+          WantedBy=multi-user.target
+      notify: Reload systemd
+    - name: Enable and start the legacy-app service
+      ansible.builtin.systemd:
+        name: legacy-app
+        enabled: true
+        state: started
+        daemon_reload: true
+    - name: Ensure the scripts directory exists
+      ansible.builtin.file:
+        path: /opt/scripts
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+    - name: Install the ransomware-simulation script used by the D1 capstone
+      ansible.builtin.copy:
+        dest: /opt/scripts/simulate_ransomware.sh
+        owner: root
+        group: root
+        mode: '0750'
+        content: |
+          #!/bin/sh
+          # CADMUS CR09 — Lab D1 disaster-recovery drill.
+          # SIMULATION ONLY: renames files under /data to *.crypted and posts a
+          # ransom message as the message-of-the-day. It does NOT encrypt data
+          # and is fully reversible by restoring /data from backup.
+          set -e
+          for f in /data/*; do
+            case "$f" in
+              *.crypted) ;;                       # already "encrypted"
+              *) [ -f "$f" ] && mv "$f" "$f.crypted" ;;
+            esac
+          done
+          cat > /etc/motd <<'BANNER'
+          ============================================================
+            !!!  YOUR FILES HAVE BEEN LOCKED  !!!
+            All data in /data has been encrypted (.crypted).
+            (SIMULATED — CADMUS CR09 training exercise)
+          ============================================================
+          BANNER
+          echo "Simulation complete: /data locked, MOTD replaced."
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+- name: Legacy web server (lin01) — Apache restored/verified in Lab C1
+  hosts: web-servers
+  become: true
+  tasks:
+    - name: Install Apache
+      ansible.builtin.package:
+        name: apache2
+        update_cache: yes
+        state: present
+    - name: Publish the "It works!" landing page verified by curl in C1
+      ansible.builtin.copy:
+        dest: /var/www/html/index.html
+        owner: root
+        group: root
+        mode: '0644'
+        content: |
+          <html><body><h1>It works!</h1></body></html>
+      notify: Restart apache2
+    - name: Ensure Apache is enabled and running
+      ansible.builtin.service:
+        name: apache2
+        enabled: true
+        state: started
+  handlers:
+    - name: Restart apache2
+      ansible.builtin.service:
+        name: apache2
+        state: restarted
