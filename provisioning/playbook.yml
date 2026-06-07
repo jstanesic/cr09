@@ -12,7 +12,7 @@
   hosts: domain-controllers
   gather_facts: false
   vars:
-    ad_domain_name: '{{ ad_domain_name | default("drlab.local") }}'
+    ad_domain_name: drlab.local
     ad_admin_password: Pa$$w0rd
   roles:
     - name: ansible-role-user-access-windows
@@ -86,7 +86,7 @@
   hosts: windows-members
   gather_facts: false
   vars:
-    ad_domain_name: '{{ ad_domain_name | default("drlab.local") }}'
+    ad_domain_name: drlab.local
     ad_admin_password: Pa$$w0rd
     ad_dc_ip: 10.9.10.3
   roles:
