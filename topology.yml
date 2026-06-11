@@ -45,15 +45,15 @@ hosts:
   - name: nsrv03
     flavor: c2_r4_d40
     base_box:
-      image: debian-12-x86_64
-      mgmt_user: debian
+      image: xubuntu-noble-x86_64
+      mgmt_user: ubuntu
       mgmt_protocol: ssh
     hidden: false
   - name: lin01
     flavor: c2_r4_d40
     base_box:
-      image: debian-12-x86_64
-      mgmt_user: debian
+      image: xubuntu-noble-x86_64
+      mgmt_user: ubuntu
       mgmt_protocol: ssh
     hidden: false
 routers:
