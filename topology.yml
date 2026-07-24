@@ -1,44 +1,37 @@
 name: cr09
 hosts:
   - name: dc01
-    flavor: c2_r4_d40
+    flavor: c4_r5_d50
     base_box:
       image: windows-server-2019-x86_64
       mgmt_user: windows
       mgmt_protocol: winrm
     hidden: false
   - name: srv01
-    flavor: c2_r4_d40
+    flavor: c4_r5_d50
     base_box:
       image: windows-server-2019-x86_64
       mgmt_user: windows
       mgmt_protocol: winrm
     hidden: false
   - name: srv02
-    flavor: c2_r4_d40
+    flavor: c4_r5_d50
     base_box:
       image: windows-server-2019-x86_64
       mgmt_user: windows
       mgmt_protocol: winrm
     hidden: false
   - name: bckup1
-    flavor: c2_r4_d40
+    flavor: c4_r5_d50
     base_box:
-      # TODO: change to the Veeam-preinstalled base image once built.
-      # Veeam B&R should be baked in with NO license applied so it boots in
-      # Community Edition (free, no activation). Image not yet built — see
-      # cr09/labs/lab_env_description.md "Preinstalled Software Image".
-      image: windows-server-2019-x86_64
+      image: cr09-windows-server-2025-x86_64
       mgmt_user: windows
       mgmt_protocol: winrm
     hidden: false
   - name: bckup2
-    flavor: c2_r4_d40
+    flavor: c4_r5_d50
     base_box:
-      # TODO: change to the Veeam-preinstalled base image once built.
-      # Veeam B&R baked in, NO license (Community Edition). Image not yet built —
-      # see cr09/labs/lab_env_description.md "Preinstalled Software Image".
-      image: windows-server-2019-x86_64
+      image: cr09-windows-server-2025-x86_64
       mgmt_user: windows
       mgmt_protocol: winrm
     hidden: false

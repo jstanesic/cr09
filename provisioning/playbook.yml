@@ -163,86 +163,39 @@
           -KerberosAuthenticationPort {{ hyperv_replica_http_port }} `
           -DefaultStorageLocation '{{ hyperv_replica_storage }}' `
           -ReplicationAllowedFromAnyServer $true
-
-# Veeam Backup & Replication install disabled — Veeam is expected to be baked
-# into the bckup1/bckup2 base image (Community Edition, no license). Re-enable
-# this play if the platform ships a plain Windows Server image instead.
-# - name: Veeam Backup & Replication — unattended install + repositories
-#   hosts: veeam-servers
-#   gather_facts: false
-#   vars:
-#     veeam_mount: ''
-#   tasks:
-#     # Default Backup Repository (A1/B1) on bckup1, the immutable/offsite copy
-#     # target (B1/D1) on bckup2, the LIN01.vbk import-staging path used by C1,
-#     # and the catalog directory. Created on the whole group — harmless extras.
-#     - name: Ensure install / repository / catalog directories exist
-#       loop:
-#         - 'C:\Installs'
-#         - 'C:\Installs\Backups'
-#         - '{{ veeam_catalog_path }}'
-#         - 'C:\Backups\Default'
-#         - 'C:\Backups\Immutable'
-#       ansible.windows.win_file:
-#         path: '{{ item }}'
-#         state: directory
-#     - name: Detect whether Veeam B&R is already installed
-#       register: veeam_svc
-#       ansible.windows.win_service_info:
-#         name: VeeamBackupSvc
-#     - name: Install Veeam Backup & Replication (Community Edition)
-#       when: veeam_svc.services | length == 0
-#       block:
-#         - name: Fetch the Veeam ISO if a URL was provided
-#           when: veeam_iso_url | length > 0
-#           ansible.windows.win_get_url:
-#             url: '{{ veeam_iso_url }}'
-#             dest: '{{ veeam_iso_path }}'
-#         - name: Stat the Veeam ISO
-#           register: iso_stat
-#           ansible.windows.win_stat:
-#             path: '{{ veeam_iso_path }}'
-#         - name: Require the installer media to be present
-#           ansible.builtin.assert:
-#             that: iso_stat.stat.exists
-#             fail_msg: >-
-#               Veeam ISO not found at {{ veeam_iso_path }} and veeam_iso_url is
-#               empty. Supply the installer media — see group_vars/veeam-servers.yml.
-#         - name: Mount the Veeam ISO and capture the drive letter
-#           register: veeam_drive
-#           changed_when: true
-#           ansible.windows.win_shell: |
-#             $img = Mount-DiskImage -ImagePath '{{ veeam_iso_path }}' -PassThru
-#             ($img | Get-Volume).DriveLetter
-#         - name: Record the mounted drive
-#           ansible.builtin.set_fact:
-#             veeam_mount: '{{ veeam_drive.stdout | trim }}:'
-#         - name: Install the Veeam Backup Catalog component
-#           ansible.windows.win_package:
-#             path: '{{ veeam_mount }}\Catalog\VeeamBackupCatalog64.msi'
-#             arguments: /qn ACCEPTEULA=1 ACCEPT_THIRDPARTY_LICENSES=1 VM_CATALOGPATH="{{ veeam_catalog_path }}"
-#             state: present
-#         - name: Install the Veeam Backup & Replication server (auto-installs PostgreSQL)
-#           ansible.windows.win_package:
-#             path: '{{ veeam_mount }}\Backup\Server.x64.msi'
-#             arguments: >-
-#               /qn ACCEPTEULA=1 ACCEPT_THIRDPARTY_LICENSES=1
-#               ACCEPT_LICENSING_POLICY=1 ACCEPT_REQUIRED_SOFTWARE=1
-#               VBR_SQLSERVER_ENGINE=1
-#               VBR_POSTGRESQL_SUPERUSER_USERNAME={{ veeam_pgsql_superuser }}
-#               VBR_POSTGRESQL_SUPERUSER_PASSWORD={{ veeam_pgsql_password }}
-#             state: present
-#         - name: Install the Veeam Backup & Replication console
-#           ansible.windows.win_package:
-#             path: '{{ veeam_mount }}\Backup\Shell.x64.msi'
-#             arguments: /qn ACCEPTEULA=1 ACCEPT_THIRDPARTY_LICENSES=1
-#             state: present
-#       always:
-#         - name: Dismount the Veeam ISO
-#           when: veeam_mount | length > 0
-#           changed_when: false
-#           failed_when: false
-#           ansible.windows.win_shell: Dismount-DiskImage -ImagePath '{{ veeam_iso_path }}'
+- name: Deploy lab verification scripts
+  hosts: veeam-servers
+  gather_facts: false
+  tasks:
+    - name: Ensure C:\Scripts exists
+      ansible.windows.win_file:
+        path: C:\Scripts
+        state: directory
+    - name: Ensure Veeam backup repository directories exist
+      loop: '{{ veeam_repo_paths }}'
+      ansible.windows.win_file:
+        path: '{{ item }}'
+        state: directory
+    - name: Deploy Verify-LabA1.ps1 to BCKUP1
+      when: inventory_hostname in groups['veeam-primary'] | default([])
+      ansible.windows.win_copy:
+        src: files/Verify-LabA1.ps1
+        dest: C:\Scripts\Verify-LabA1.ps1
+    - name: Deploy Verify-LabB1.ps1 to BCKUP1
+      when: inventory_hostname in groups['veeam-primary'] | default([])
+      ansible.windows.win_copy:
+        src: files/Verify-LabB1.ps1
+        dest: C:\Scripts\Verify-LabB1.ps1
+    - name: Deploy Verify-LabC1.ps1 to BCKUP1
+      when: inventory_hostname in groups['veeam-primary'] | default([])
+      ansible.windows.win_copy:
+        src: files/Verify-LabC1.ps1
+        dest: C:\Scripts\Verify-LabC1.ps1
+    - name: Deploy Verify-LabD1.ps1 to BCKUP2
+      when: inventory_hostname in groups['veeam-repo'] | default([])
+      ansible.windows.win_copy:
+        src: files/Verify-LabD1.ps1
+        dest: C:\Scripts\Verify-LabD1.ps1
 
 - name: Linux nodes — create the local trainee account
   hosts: linux-nodes
