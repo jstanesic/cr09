@@ -17,7 +17,7 @@
   roles:
     - name: ansible-role-user-access-windows
       user_access_username: localadmin
-      user_access_password: Password123!
+      user_access_password: Password123
       user_access_rdp: True
       user_access_admin: True
   tasks:
@@ -61,7 +61,7 @@
         name: domainuser
         sam_account_name: domainuser
         upn: domainuser@{{ ad_domain_name }}
-        password: Password123!
+        password: Password123
         password_never_expires: true
         enabled: true
         state: present
@@ -92,7 +92,7 @@
   roles:
     - name: ansible-role-user-access-windows
       user_access_username: localadmin
-      user_access_password: Password123!
+      user_access_password: Password123
       user_access_rdp: True
       user_access_admin: True
   tasks:
@@ -203,7 +203,7 @@
   roles:
     - name: ansible-role-user-access
       user_access_username: localuser
-      user_access_password: Password123!
+      user_access_password: Password123
       user_access_sudo: True
 
 - name: Production application server (nsrv03) — app, data set and DR-drill script
