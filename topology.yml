@@ -8,46 +8,40 @@ hosts:
       mgmt_protocol: winrm
     hidden: false
   - name: srv01
-    flavor: c4_r5_d50
+    # 8GB RAM: Windows Server + Hyper-V role must run NSRV03 permanently and,
+    # during Lab C1's alternate-location restore drill, NSRV03-Test concurrently.
+    flavor: c4_r8_d50
     base_box:
       image: windows-server-2019-x86_64
       mgmt_user: windows
       mgmt_protocol: winrm
     hidden: false
   - name: srv02
-    flavor: c4_r5_d50
+    # 8GB RAM: parity with srv01 — hosts the failed-over NSRV03 replica (B1/D1)
+    # and is the clean-restore target in D1.
+    flavor: c4_r8_d50
     base_box:
       image: windows-server-2019-x86_64
       mgmt_user: windows
       mgmt_protocol: winrm
     hidden: false
   - name: bckup1
-    flavor: c4_r5_d120
+    # 8GB RAM: Veeam B&R bundles PostgreSQL + catalog; primary server runs
+    # backup/restore/import jobs interactively alongside the open console.
+    flavor: c4_r8_d120
     base_box:
       image: cr09-windows-server-2025-x86_64
       mgmt_user: windows
      #  mgmt_protocol: winrm
     hidden: false
   - name: bckup2
-    flavor: c4_r5_d120
+    # 6GB RAM: mostly a passive immutable repository target, lower interactive
+    # load than bckup1.
+    flavor: c4_r6_d120
     base_box:
       image: cr09-windows-server-2025-x86_64
       mgmt_user: windows
      #  mgmt_protocol: winrm
-    hidden: false
-  - name: nsrv03
-    flavor: c2_r4_d40
-    base_box:
-      image: xubuntu-noble-x86_64
-      mgmt_user: ubuntu
-      mgmt_protocol: ssh
-    hidden: false
-  - name: lin01
-    flavor: c2_r4_d40
-    base_box:
-      image: xubuntu-noble-x86_64
-      mgmt_user: ubuntu
-      mgmt_protocol: ssh
     hidden: false
 routers:
   - name: r-prod
@@ -115,12 +109,6 @@ net_mappings:
   - host: bckup2
     network: backup
     ip: 10.9.30.7
-  - host: nsrv03
-    network: prod
-    ip: 10.9.10.20
-  - host: lin01
-    network: prod
-    ip: 10.9.10.21
 router_mappings:
   - router: r-prod
     network: prod
@@ -155,13 +143,3 @@ groups:
       - srv02
       - bckup1
       - bckup2
-  - name: linux-nodes
-    nodes:
-      - nsrv03
-      - lin01
-  - name: production-app
-    nodes:
-      - nsrv03
-  - name: web-servers
-    nodes:
-      - lin01

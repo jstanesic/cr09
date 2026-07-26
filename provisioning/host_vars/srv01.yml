@@ -1,4 +1,5 @@
-# Production Hyper-V host — hosts NSRV03 and (after C1) the restored LIN01.
+# Production Hyper-V host — hosts NSRV03 (restored from backup in A1) and,
+# temporarily during C1, the isolated NSRV03-Test restore drill.
 hyperv_switches:
   - name: Production-Switch
     type: Internal
