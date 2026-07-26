@@ -28,16 +28,19 @@ hosts:
   - name: bckup1
     # 8GB RAM: Veeam B&R bundles PostgreSQL + catalog; primary server runs
     # backup/restore/import jobs interactively alongside the open console.
-    flavor: c4_r8_d120
+    # (Catalog has no c4 flavor at 8GB RAM + 120GB disk — trading disk for RAM
+    # here since this box's load is interactive, not storage-bound.)
+    flavor: c4_r8_d80
     base_box:
       image: cr09-windows-server-2025-x86_64
       mgmt_user: windows
      #  mgmt_protocol: winrm
     hidden: false
   - name: bckup2
-    # 6GB RAM: mostly a passive immutable repository target, lower interactive
-    # load than bckup1.
-    flavor: c4_r6_d120
+    # 5GB RAM / 120GB disk: mostly a passive immutable repository target —
+    # this is the actual backup-storage sink, so disk matters more than RAM
+    # here (catalog only pairs 120GB disk with 5GB RAM on c4).
+    flavor: c4_r5_d120
     base_box:
       image: cr09-windows-server-2025-x86_64
       mgmt_user: windows
