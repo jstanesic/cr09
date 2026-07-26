@@ -26,14 +26,14 @@ hosts:
     base_box:
       image: cr09-windows-server-2025-x86_64
       mgmt_user: windows
-      mgmt_protocol: winrm
+     #  mgmt_protocol: winrm
     hidden: false
   - name: bckup2
     flavor: c4_r5_d120
     base_box:
       image: cr09-windows-server-2025-x86_64
       mgmt_user: windows
-      mgmt_protocol: winrm
+     #  mgmt_protocol: winrm
     hidden: false
   - name: nsrv03
     flavor: c2_r4_d40
