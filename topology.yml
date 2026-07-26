@@ -26,11 +26,11 @@ hosts:
       mgmt_protocol: winrm
     hidden: false
   - name: bckup1
-    # 8GB RAM: Veeam B&R bundles PostgreSQL + catalog; primary server runs
-    # backup/restore/import jobs interactively alongside the open console.
-    # (Catalog has no c4 flavor at 8GB RAM + 120GB disk — trading disk for RAM
-    # here since this box's load is interactive, not storage-bound.)
-    flavor: c4_r8_d80
+    # The Veeam-preinstalled base image (cr09-windows-server-2025-x86_64) has a
+    # minimum-disk requirement of 120GB baked into its image metadata, so any
+    # flavor under 120GB disk is rejected at deploy regardless of the catalog.
+    # c4_r5_d120 is the only c4 flavor that clears that floor.
+    flavor: c4_r5_d120
     base_box:
       image: cr09-windows-server-2025-x86_64
       mgmt_user: windows
