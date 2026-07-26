@@ -13,11 +13,11 @@
   gather_facts: false
   vars:
     ad_domain_name: drlab.local
-    ad_admin_password: Pa$$w0rd
+    ad_admin_password: Password123!
   roles:
     - name: ansible-role-user-access-windows
       user_access_username: localadmin
-      user_access_password: Password123
+      user_access_password: Password123!
       user_access_rdp: True
       user_access_admin: True
   tasks:
@@ -61,7 +61,7 @@
         name: domainuser
         sam_account_name: domainuser
         upn: domainuser@{{ ad_domain_name }}
-        password: Password123
+        password: Password123!
         password_never_expires: true
         enabled: true
         state: present
@@ -87,12 +87,12 @@
   gather_facts: false
   vars:
     ad_domain_name: drlab.local
-    ad_admin_password: Pa$$w0rd
+    ad_admin_password: Password123!
     ad_dc_ip: 10.9.10.3
   roles:
     - name: ansible-role-user-access-windows
       user_access_username: localadmin
-      user_access_password: Password123
+      user_access_password: Password123!
       user_access_rdp: True
       user_access_admin: True
   tasks:
@@ -203,7 +203,7 @@
   roles:
     - name: ansible-role-user-access
       user_access_username: localuser
-      user_access_password: Password123
+      user_access_password: Password123!
       user_access_sudo: True
 
 - name: Production application server (nsrv03) — app, data set and DR-drill script
