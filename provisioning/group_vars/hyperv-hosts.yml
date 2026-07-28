@@ -2,7 +2,7 @@
 # The per-host virtual switches each host must own are declared in
 # host_vars/<host>.yml (srv01 -> Production-Switch, srv02 -> DR-Switch).
 
-# Hyper-V Replica server settings applied to both hosts so that NSRV03 can be
+# Hyper-V Replica server settings applied to both hosts so that LIN01 can be
 # replicated SRV01 -> SRV02 (Labs B1 and D1). Kerberos/HTTP on port 80 keeps
 # the lab simple (no certificate provisioning required).
 hyperv_replica_auth: Kerberos

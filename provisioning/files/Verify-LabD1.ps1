@@ -4,28 +4,28 @@ Add-PSSnapin VeeamPSSnapIn -ErrorAction SilentlyContinue
 
 $ok = $true
 
-# 1 — NSRV03 must be Running on SRV02 (restored from BCKUP2 after ransomware)
+# 1 — LIN01 must be Running on SRV02 (restored from BCKUP2 after ransomware)
 try {
-    $state = Invoke-Command -ComputerName SRV02 { (Get-VM -Name NSRV03).State }
+    $state = Invoke-Command -ComputerName SRV02 { (Get-VM -Name LIN01).State }
     if ($state -eq 'Running') {
-        Write-Host '[PASS] NSRV03 is Running on SRV02'
+        Write-Host '[PASS] LIN01 is Running on SRV02'
     } else {
-        Write-Host "[FAIL] NSRV03 state on SRV02: $state"
+        Write-Host "[FAIL] LIN01 state on SRV02: $state"
         $ok = $false
     }
 } catch {
-    Write-Host "[FAIL] Cannot check NSRV03 on SRV02: $_"
+    Write-Host "[FAIL] Cannot check LIN01 on SRV02: $_"
     $ok = $false
 }
 
-# 2 — A completed Veeam restore session for NSRV03 must exist on this host
+# 2 — A completed Veeam restore session for LIN01 must exist on this host
 try {
     $session = Get-VBRRestoreSession |
-               Where-Object { $_.Name -like '*NSRV03*' } |
+               Where-Object { $_.Name -like '*LIN01*' } |
                Sort-Object EndTime |
                Select-Object -Last 1
     if ($session -and $session.Result -eq 'Success') {
-        Write-Host '[PASS] Veeam restore for NSRV03 completed successfully'
+        Write-Host '[PASS] Veeam restore for LIN01 completed successfully'
     } else {
         $result = if ($session) { $session.Result } else { 'no session found' }
         Write-Host "[FAIL] Restore session: $result"

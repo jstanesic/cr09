@@ -1,7 +1,7 @@
 # Veeam Backup & Replication comes preinstalled on the bckup1/bckup2 base image
 # (Community Edition, no license file) — the unattended-install play has been
 # removed. This file only holds vars for the repository directories and the
-# pre-staged NSRV03 backup that Lab A1 imports at the start of the course.
+# pre-staged LIN01 backup that Lab A1 imports at the start of the course.
 
 # Backup repository directories ensured on each Veeam server (the Default
 # repository on bckup1, the immutable/offsite copy target on bckup2). Created
@@ -10,8 +10,8 @@ veeam_repo_paths:
   - 'C:\Backups\Default'
   - 'C:\Backups\Immutable'
 
-# Pre-staged NSRV03 backup imported in Lab A1 (Import Backup -> NSRV03.vbk) to
+# Pre-staged LIN01 backup imported in Lab A1 (Import Backup -> LIN01.vbk) to
 # bring the production application server online for the first time.
 # No lab produces this file — it is baked into the Veeam-preinstalled image at
-# this path, per the build/capture procedure in ../../NSRV03_vbk_runbook.md.
-nsrv03_vbk_path: 'C:\Installs\Backups\NSRV03.vbk'
+# this path, per the build/capture procedure in ../../LIN01_vbk_runbook.md.
+lin01_vbk_path: 'C:\Installs\Backups\LIN01.vbk'

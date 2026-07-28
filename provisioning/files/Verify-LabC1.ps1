@@ -4,17 +4,17 @@ Add-PSSnapin VeeamPSSnapIn -ErrorAction SilentlyContinue
 
 $ok = $true
 
-# 1 — NSRV03 must be reachable and healthy on SRV02 (post-failover validation)
+# 1 — LIN01 must be reachable and healthy on SRV02 (post-failover validation)
 try {
     $resp = Test-Connection -ComputerName 10.9.10.20 -Count 4 -ErrorAction Stop
     if ($resp) {
-        Write-Host '[PASS] NSRV03 is reachable at 10.9.10.20 (post-failover)'
+        Write-Host '[PASS] LIN01 is reachable at 10.9.10.20 (post-failover)'
     } else {
-        Write-Host '[FAIL] NSRV03 did not respond at 10.9.10.20'
+        Write-Host '[FAIL] LIN01 did not respond at 10.9.10.20'
         $ok = $false
     }
 } catch {
-    Write-Host "[FAIL] Cannot reach NSRV03 at 10.9.10.20: $_"
+    Write-Host "[FAIL] Cannot reach LIN01 at 10.9.10.20: $_"
     $ok = $false
 }
 
@@ -34,16 +34,16 @@ try {
     $ok = $false
 }
 
-# 3 — A successful restore of NSRV03 to the alternate location (NSRV03-Test) must exist
+# 3 — A successful restore of LIN01 to the alternate location (LIN01-Test) must exist
 try {
     $session = Get-VBRRestoreSession |
-        Where-Object { $_.Name -like '*NSRV03-Test*' } |
+        Where-Object { $_.Name -like '*LIN01-Test*' } |
         Sort-Object CreationTime -Descending |
         Select-Object -First 1
     if ($session -and $session.Result -eq 'Success') {
-        Write-Host '[PASS] NSRV03-Test alternate-location restore completed successfully'
+        Write-Host '[PASS] LIN01-Test alternate-location restore completed successfully'
     } else {
-        Write-Host "[FAIL] No successful NSRV03-Test restore session found"
+        Write-Host "[FAIL] No successful LIN01-Test restore session found"
         $ok = $false
     }
 } catch {

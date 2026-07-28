@@ -8,8 +8,8 @@ hosts:
       mgmt_protocol: winrm
     hidden: false
   - name: srv01
-    # 8GB RAM: Windows Server + Hyper-V role must run NSRV03 permanently and,
-    # during Lab C1's alternate-location restore drill, NSRV03-Test concurrently.
+    # 8GB RAM: Windows Server + Hyper-V role must run LIN01 permanently and,
+    # during Lab C1's alternate-location restore drill, LIN01-Test concurrently.
     flavor: c4_r8_d50
     base_box:
       image: windows-server-2019-x86_64
@@ -17,7 +17,7 @@ hosts:
       mgmt_protocol: winrm
     hidden: false
   - name: srv02
-    # 8GB RAM: parity with srv01 — hosts the failed-over NSRV03 replica (B1/D1)
+    # 8GB RAM: parity with srv01 — hosts the failed-over LIN01 replica (B1/D1)
     # and is the clean-restore target in D1.
     flavor: c4_r8_d50
     base_box:

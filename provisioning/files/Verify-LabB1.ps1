@@ -4,17 +4,17 @@ Add-PSSnapin VeeamPSSnapIn -ErrorAction SilentlyContinue
 
 $ok = $true
 
-# 1 — NSRV03 must be Running on SRV02 (planned failover completed)
+# 1 — LIN01 must be Running on SRV02 (planned failover completed)
 try {
-    $state = Invoke-Command -ComputerName SRV02 { (Get-VM -Name NSRV03).State }
+    $state = Invoke-Command -ComputerName SRV02 { (Get-VM -Name LIN01).State }
     if ($state -eq 'Running') {
-        Write-Host '[PASS] NSRV03 is Running on SRV02'
+        Write-Host '[PASS] LIN01 is Running on SRV02'
     } else {
-        Write-Host "[FAIL] NSRV03 state on SRV02: $state"
+        Write-Host "[FAIL] LIN01 state on SRV02: $state"
         $ok = $false
     }
 } catch {
-    Write-Host "[FAIL] Cannot check NSRV03 on SRV02: $_"
+    Write-Host "[FAIL] Cannot check LIN01 on SRV02: $_"
     $ok = $false
 }
 
