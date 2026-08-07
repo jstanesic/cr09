@@ -2,11 +2,10 @@
 # The per-host virtual switches each host must own are declared in
 # host_vars/<host>.yml (srv01 -> Production-Switch, srv02 -> DR-Switch).
 
-# Hyper-V Replica server settings applied to both hosts so that LIN01 can be
-# replicated SRV01 -> SRV02 (Labs B1 and D1). Kerberos/HTTP on port 80 keeps
-# the lab simple (no certificate provisioning required).
-hyperv_replica_auth: Kerberos
-hyperv_replica_http_port: 80
+# Default storage location for replica files, pre-created on both hosts so the
+# path exists when the learner points Replication Configuration at it.
+# The Replica server role itself is NOT provisioned: the learner enables it in
+# Lab B1 step 1 (Kerberos/HTTP on port 80, no certificate provisioning needed).
 hyperv_replica_storage: 'C:\Hyper-V\Replica'
 # Where guest VHDX / config files live on each host.
 hyperv_vm_root: 'C:\Hyper-V'

@@ -10,8 +10,13 @@ veeam_repo_paths:
   - 'C:\Backups\Default'
   - 'C:\Backups\Immutable'
 
-# Pre-staged LIN01 backup imported in Lab A1 (Import Backup -> LIN01.vbk) to
-# bring the production application server online for the first time.
-# No lab produces this file — it is baked into the Veeam-preinstalled image at
-# this path, per the build/capture procedure in ../../LIN01_vbk_runbook.md.
+# Pre-staged LIN01 backup, baked into the shared bckup1/bckup2 image at this path
+# — so BOTH Veeam servers hold their own copy of it. No lab produces this file;
+# see the build/capture procedure in ../../LIN01_vbk_runbook.md.
+#   bckup1's copy: Lab A1 imports it to bring the production application server
+#                  online for the first time.
+#   bckup2's copy: Lab D1 imports it as the clean, pre-attack restore source once
+#                  ransomware has encrypted both the production VM and its replica.
+#                  Lab B1's Backup Copy job does NOT produce it — that job copies
+#                  DC01, not LIN01.
 lin01_vbk_path: 'C:\Installs\Backups\LIN01.vbk'

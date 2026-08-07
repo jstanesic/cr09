@@ -150,11 +150,6 @@
           New-VMSwitch -Name '{{ item.name }}' -SwitchType {{ item.type }} | Out-Null
           'created'
         } else { 'exists' }
-    - name: Allow the Hyper-V Replica HTTP listener inbound through the firewall
-      ansible.windows.win_shell: >-
-        Enable-NetFirewallRule -DisplayName 'Hyper-V Replica HTTP Listener (TCP-In)'
-      changed_when: false
-      failed_when: false
     # Veeam's "Add Server" wizard pushes its deployment agent to this host over
     # the ADMIN$ share (SMB, port 445) plus WMI/RPC — both are blocked by the
     # default Windows Server firewall profile. Without this, Add Server fails
@@ -170,18 +165,70 @@
         Enable-NetFirewallRule -DisplayGroup 'Windows Management Instrumentation (WMI)'
       changed_when: false
       failed_when: false
-    - name: Configure this host as a Hyper-V Replica server (Kerberos/HTTP)
+    # Lab D1's ransomware simulation is launched from BCKUP1 and reaches these hosts
+    # over WinRM (Invoke-Command) to corrupt LIN01's disk — the running production VM
+    # on SRV02, the off replica on SRV01. Open the WinRM listener so that remote call
+    # can authenticate; without it the orchestrator fails with "cannot connect".
+    - name: Allow Windows Remote Management inbound through the firewall
+      ansible.windows.win_shell: >-
+        Enable-NetFirewallRule -DisplayGroup 'Windows Remote Management'
       changed_when: false
+      failed_when: false
+    # The D1 simulation payload runs here (Invoke-Command from BCKUP1) and performs
+    # deliberately ransomware-like actions — overwriting VHDX headers, renaming disks
+    # to .crypted, dropping a ransom note — which Microsoft Defender detects and blocks.
+    # These are isolated, throwaway lab hosts, so relax Defender enough for the
+    # simulation to run. LAB-ONLY: never do this on a production host.
+    - name: Relax Microsoft Defender so the D1 simulation can run (lab-only)
       ansible.windows.win_shell: |
-        Set-VMReplicationServer -ReplicationEnabled $true `
-          -AllowedAuthenticationType {{ hyperv_replica_auth }} `
-          -KerberosAuthenticationPort {{ hyperv_replica_http_port }} `
-          -DefaultStorageLocation '{{ hyperv_replica_storage }}' `
-          -ReplicationAllowedFromAnyServer $true
-- name: Deploy lab verification scripts
+        Add-MpPreference -ExclusionPath 'C:\Scripts','C:\Hyper-V','C:\ProgramData\Microsoft\Windows\Virtual Hard Disks' -ErrorAction SilentlyContinue
+        Set-MpPreference -EnableControlledFolderAccess Disabled -ErrorAction SilentlyContinue
+        Set-MpPreference -DisableRealtimeMonitoring $true -ErrorAction SilentlyContinue
+      changed_when: false
+      failed_when: false
+    # NOTE: Hyper-V Replica is deliberately left unprovisioned — neither the Replica
+    # server role nor its firewall rule. Lab B1 step 1 has the learner enable both
+    # themselves on SRV01 and SRV02: the role via Hyper-V Settings -> Replication
+    # Configuration (or Set-VMReplicationServer), then the listener via
+    # Enable-NetFirewallRule -DisplayName 'Hyper-V Replica HTTP Listener (TCP-In)'.
+    # Windows creates that rule disabled by default, so replication genuinely fails
+    # until the learner enables it — which is the point of the exercise. Only the
+    # replica storage directory is pre-staged. Do not add either task here.
+- name: Prepare Veeam servers (firewall, repositories, verification scripts)
   hosts: veeam-servers
   gather_facts: false
   tasks:
+    # The verification scripts and the labs both reach across hosts from BCKUP1:
+    # Invoke-Command to SRV02/DC01 over WinRM, and Veeam's Add Server / agent
+    # deployment over SMB (ADMIN$, port 445) plus WMI. All three inbound rules are
+    # disabled by the default Windows Server firewall profile, which surfaces as
+    # "Access is denied" on remoting and "The specified network name is no longer
+    # available" in Veeam's wizards.
+    - name: Allow Windows Remote Management inbound through the firewall
+      ansible.windows.win_shell: >-
+        Enable-NetFirewallRule -DisplayGroup 'Windows Remote Management'
+      changed_when: false
+      failed_when: false
+    - name: Allow File and Printer Sharing (SMB) inbound through the firewall
+      ansible.windows.win_shell: >-
+        Enable-NetFirewallRule -DisplayGroup 'File and Printer Sharing'
+      changed_when: false
+      failed_when: false
+    - name: Allow Windows Management Instrumentation (WMI) inbound through the firewall
+      ansible.windows.win_shell: >-
+        Enable-NetFirewallRule -DisplayGroup 'Windows Management Instrumentation (WMI)'
+      changed_when: false
+      failed_when: false
+    # BCKUP1 launches the D1 simulation and encrypts LIN01's on-site backup, both of
+    # which Microsoft Defender flags as ransomware. Relax it on the Veeam servers so
+    # the simulation runs. LAB-ONLY: never do this on a production host.
+    - name: Relax Microsoft Defender so the D1 simulation can run (lab-only)
+      ansible.windows.win_shell: |
+        Add-MpPreference -ExclusionPath 'C:\Scripts','C:\Backup','C:\Installs\Backups' -ErrorAction SilentlyContinue
+        Set-MpPreference -EnableControlledFolderAccess Disabled -ErrorAction SilentlyContinue
+        Set-MpPreference -DisableRealtimeMonitoring $true -ErrorAction SilentlyContinue
+      changed_when: false
+      failed_when: false
     - name: Ensure C:\Scripts exists
       ansible.windows.win_file:
         path: C:\Scripts
@@ -206,14 +253,29 @@
       ansible.windows.win_copy:
         src: files/Verify-LabC1.ps1
         dest: C:\Scripts\Verify-LabC1.ps1
-    - name: Deploy Verify-LabD1.ps1 to BCKUP2
-      when: inventory_hostname in groups['veeam-repo'] | default([])
+    # Verify-LabD1 only remotes to SRV02 to check LIN01's state, so it can run from
+    # BCKUP1 alongside the other verify scripts — no need to switch to the BCKUP2
+    # console just for the passkey check. The clean restore itself still runs on BCKUP2.
+    - name: Deploy Verify-LabD1.ps1 to BCKUP1
+      when: inventory_hostname in groups['veeam-primary'] | default([])
       ansible.windows.win_copy:
         src: files/Verify-LabD1.ps1
         dest: C:\Scripts\Verify-LabD1.ps1
+    # The D1 ransomware simulation orchestrator is launched from BCKUP1 only. It must
+    # NOT land on BCKUP2 — BCKUP2 holds the clean LIN01.vbk the lab restores from, and
+    # running the script there would encrypt the very copy the recovery depends on.
+    - name: Deploy Simulate-Attack.ps1 to BCKUP1
+      when: inventory_hostname in groups['veeam-primary'] | default([])
+      ansible.windows.win_copy:
+        src: files/Simulate-Attack.ps1
+        dest: C:\Scripts\Simulate-Attack.ps1
 
-# LIN01 (and its /data dataset, legacy-app.service, and the D1
-# simulate_ransomware.sh script) is no longer provisioned here — it is baked
-# into LIN01.vbk once (see ../LIN01_vbk_runbook.md) and Lab A1 brings it
-# online on SRV01 by importing and restoring that file. Nothing here creates a
-# flat "lin01" or "lin01" node — LIN01 has been removed from the course.
+# LIN01 is no longer provisioned here — it is baked into LIN01.vbk once (see
+# ../LIN01_vbk_runbook.md) and Lab A1 brings it online on SRV01 by importing and
+# restoring that file. Nothing here creates a flat "lin01" node.
+#
+# Lab D1's ransomware attack is simulated entirely at the hypervisor/host layer
+# (files/Simulate-Attack.ps1, launched from BCKUP1) — it corrupts LIN01's virtual
+# disks on SRV01/SRV02 and encrypts the on-site backup on BCKUP1. Nothing needs to
+# be baked into the guest image for D1: the only in-guest artefact the lab checks is
+# /var/www/html/index.html ("It works!"), which is already present from Lab A1.

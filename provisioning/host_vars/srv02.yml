@@ -1,5 +1,14 @@
 # DR Hyper-V host — Hyper-V Replica target and the D1 clean-restore destination.
+#
+# "Production-Switch" is named identically to the switch on srv01 on purpose. Hyper-V Replica
+# attaches a replica VM's adapter to a switch of the same name on the target host, so without
+# this the LIN01 replica would come up with a disconnected adapter after the B1 planned
+# failover. Mirroring production network names at the DR site is also what real DR sites do,
+# for exactly this reason.
+#
 # "DR-Switch" is the isolated switch the restored LIN01 attaches to in Lab D1.
 hyperv_switches:
+  - name: Production-Switch
+    type: Internal
   - name: DR-Switch
     type: Internal
