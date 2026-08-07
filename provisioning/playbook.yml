@@ -113,15 +113,26 @@
   hosts: hyperv-hosts
   gather_facts: false
   tasks:
+    # Hyper-V-PowerShell (the module that provides Get-VMSwitch / New-VMSwitch) is a
+    # sub-feature of RSAT-Hyper-V-Tools, not of the Hyper-V role itself. On some images
+    # `include_management_tools` does not pull it in, and every later task that shells
+    # out to a Hyper-V cmdlet dies with "The term 'Get-VMSwitch' is not recognized".
+    # Name the management features explicitly so they are never left out.
     - name: Ensure the Hyper-V role and management tools are installed
       register: hyperv_feature
       ansible.windows.win_feature:
-        name: Hyper-V
+        name:
+          - Hyper-V
+          - RSAT-Hyper-V-Tools
+          - Hyper-V-PowerShell
         include_management_tools: true
         state: present
+    # A fresh Hyper-V role install always needs a reboot to bring up the hypervisor and
+    # register the module path; don't rely on reboot_required alone being reported.
     - name: Reboot if the Hyper-V role install requested it
-      when: hyperv_feature.reboot_required | default(false)
+      when: hyperv_feature.reboot_required | default(false) or hyperv_feature.changed
       ansible.windows.win_reboot:
+        reboot_timeout: 1200
     - name: Wait for the Hyper-V management service (vmms) to be present
       register: vmms_info
       until: vmms_info.services | length > 0
@@ -139,6 +150,16 @@
       ansible.windows.win_file:
         path: '{{ item }}'
         state: directory
+    # The Hyper-V module can take a moment to become loadable after the post-install
+    # reboot. Block here rather than letting the first switch task fail on it.
+    - name: Wait for the Hyper-V PowerShell module to be loadable
+      register: hyperv_module
+      until: hyperv_module.rc == 0
+      retries: 30
+      delay: 10
+      changed_when: false
+      ansible.windows.win_shell: >-
+        Import-Module Hyper-V -ErrorAction Stop; Get-Command Get-VMSwitch -ErrorAction Stop | Out-Null
     - name: Create the host's Hyper-V virtual switches (Production-Switch / DR-Switch)
       loop: '{{ hyperv_switches | default([]) }}'
       loop_control:
@@ -146,6 +167,7 @@
       register: vmswitch
       changed_when: "'created' in vmswitch.stdout"
       ansible.windows.win_shell: |
+        Import-Module Hyper-V -ErrorAction Stop
         if (-not (Get-VMSwitch -Name '{{ item.name }}' -ErrorAction SilentlyContinue)) {
           New-VMSwitch -Name '{{ item.name }}' -SwitchType {{ item.type }} | Out-Null
           'created'
